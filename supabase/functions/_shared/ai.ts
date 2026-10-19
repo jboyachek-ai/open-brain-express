@@ -163,6 +163,11 @@ export async function callLLM(opts: {
         model: CHAT_MODEL,
         messages,
         max_tokens: opts.maxTokens ?? 1024,
+        // Newer models (e.g. Claude Haiku 5.5) "think" by default, and that
+        // thinking counts against max_tokens — on longer input it can use the
+        // whole budget and return an empty answer. Tagging and summarising
+        // don't need it, so switch it off. Models without thinking ignore this.
+        reasoning: { enabled: false },
         // Asks OpenRouter to report what this call actually cost, rather than
         // us guessing from a price list that goes stale.
         usage: { include: true },
