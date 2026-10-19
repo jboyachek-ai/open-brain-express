@@ -42,6 +42,15 @@ Built 18 October 2026. No keys or passwords in this file — those live in
 3. **"pdfjsLib is not defined".** The browser blocked the PDF library from
    cdnjs (tracking prevention or an ad blocker). The library now ships with
    the app in `vendor/`, so nothing external has to load.
+4. **Huge search results in Claude.** search_brain returned whole PDFs and
+   transcripts (139k characters for 4 hits). open-brain-mcp now shows long
+   thoughts as summary + first 1,500 characters + the matching passage.
+5. **Claude Desktop config location.** This is the Microsoft Store build, so the
+   live config is
+   `%LOCALAPPDATA%\Claude-Data\claude_pzs8sxrjxfjjc\claude_desktop_config.json`,
+   not `%APPDATA%\Claude`. Claude rewrote it on restart once and dropped the
+   open-brain entry. Re-adding it while Claude was running, then ending Claude
+   in Task Manager, made it stick.
 
 ## Worth knowing
 

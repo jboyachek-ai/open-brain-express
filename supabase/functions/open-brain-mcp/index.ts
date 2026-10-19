@@ -114,6 +114,7 @@ function formatThought(t: {
   source?: string | null
   category?: string | null
   tags?: string[] | null
+  summary?: string | null
   similarity?: number
   match_source?: string
   chunk_origin?: string
@@ -132,7 +133,19 @@ function formatThought(t: {
     bits.push(t.chunk_origin === 'source' ? 'matched in full source text' : 'matched in an excerpt')
   }
   const tagLine = t.tags?.length ? `\ntags: ${t.tags.join(', ')}` : ''
-  return `[${bits.join(' · ')}]${tagLine}\n${t.content}`
+  return `[${bits.join(' · ')}]${tagLine}\n${clip(t.content, t.summary)}`
+}
+
+// A whole PDF or video transcript can be 100,000+ characters. Sending that for
+// every hit floods Claude's context (one search returned 139k characters), so
+// long thoughts are shown as their summary plus the opening.
+const MAX_THOUGHT_CHARS = 1500
+
+function clip(content: string, summary?: string | null): string {
+  if (content.length <= MAX_THOUGHT_CHARS) return content
+  const more = content.length - MAX_THOUGHT_CHARS
+  const lead = summary ? `summary: ${summary}\n\n` : ''
+  return `${lead}${content.slice(0, MAX_THOUGHT_CHARS).trimEnd()}… [${more.toLocaleString('en-US')} more characters not shown]`
 }
 
 // ---------------------------------------------------------------------------
@@ -224,9 +237,20 @@ Deno.serve(async (req) => {
 
       // For each hit, also pull what it is connected to. This is the part that
       // surfaces things the user forgot they saved.
+      // search_thoughts_hybrid does not return summaries; fetch them so long
+      // hits can be shown as summary + opening instead of their full text.
+      const { data: summaryRows } = await supabase
+        .from('thoughts')
+        .select('id, summary')
+        .in('id', rows.map((r: { id: string }) => r.id))
+      const summaries = new Map((summaryRows ?? []).map(s => [s.id, s.summary]))
+
       const sections: string[] = []
       for (const row of rows) {
-        let block = formatThought(row)
+        let block = formatThought({ ...row, summary: summaries.get(row.id) })
+        if (row.match_source === 'chunk' && row.matched_chunk) {
+          block += `\n  Matching passage:\n    ${clip(row.matched_chunk).replace(/\s+/g, ' ')}`
+        }
 
         const { data: links } = await supabase
           .from('thought_links')
@@ -270,7 +294,7 @@ Deno.serve(async (req) => {
       const limit = Math.min(Number(args.limit) || 10, 50)
       const { data, error } = await supabase
         .from('thoughts')
-        .select('content, created_at, source, category, tags')
+        .select('content, created_at, source, category, tags, summary')
         .eq('user_id', OWNER_USER_ID)
         .order('created_at', { ascending: false })
         .limit(limit)
